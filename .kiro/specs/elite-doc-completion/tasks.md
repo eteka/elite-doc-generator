@@ -1,0 +1,249 @@
+# Implementation Plan
+
+- [x] 1. Set up database and authentication infrastructure
+  - [x] 1.1 Install and configure Prisma with PostgreSQL
+    - Install prisma and @prisma/client packages
+    - Create prisma/schema.prisma with User, Account, Session, Document, Folder, Usage, UserSettings models
+    - Configure database connection string in .env
+    - Run initial migration
+    - _Requirements: 2.2, 3.1_
+  - [ ]* 1.2 Write property test for document ID uniqueness
+    - **Property 6: Document ID Uniqueness**
+    - **Validates: Requirements 3.1**
+  - [x] 1.3 Install and configure NextAuth.js v5
+    - Install next-auth and @auth/prisma-adapter packages
+    - Create lib/auth.ts with providers configuration
+    - Create app/api/auth/[...nextauth]/route.ts
+    - Configure Google OAuth provider
+    - Configure Credentials provider with password hashing
+    - _Requirements: 2.1, 2.3, 2.4_
+  - [ ]* 1.4 Write property test for authentication correctness
+    - **Property 4: Authentication Correctness**
+    - **Validates: Requirements 2.3, 2.5**
+
+- [x] 2. Implement authentication UI and flows
+  - [x] 2.1 Create authentication pages and components
+    - Create app/auth/signin/page.tsx with sign-in form
+    - Create app/auth/signup/page.tsx with registration form
+    - Create app/auth/error/page.tsx for auth errors
+    - Create components/auth/auth-provider.tsx session wrapper
+    - Add sign-in/sign-out buttons to navbar
+    - _Requirements: 2.1, 2.2, 2.3, 2.6_
+  - [ ]* 2.2 Write property test for user registration uniqueness
+    - **Property 3: User Registration Uniqueness**
+    - **Validates: Requirements 2.2**
+  - [x] 2.3 Implement protected route middleware
+    - Create middleware.ts for route protection
+    - Define protected route patterns
+    - Redirect unauthenticated users to sign-in
+    - _Requirements: 2.7_
+  - [ ]* 2.4 Write property test for protected route enforcement
+    - **Property 5: Protected Route Enforcement**
+    - **Validates: Requirements 2.7**
+
+- [ ] 3. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 4. Implement document service and persistence
+  - [x] 4.1 Create document service with CRUD operations
+    - Create lib/services/document-service.ts
+    - Implement create, update, delete, getById, getByUser methods
+    - Add auto-save debounce logic
+    - _Requirements: 3.1, 3.2, 3.3, 3.5, 3.6, 3.7_
+  - [ ]* 4.2 Write property test for document save/load round-trip
+    - **Property 7: Document Save/Load Round-Trip**
+    - **Validates: Requirements 3.3, 3.5**
+  - [ ]* 4.3 Write property test for document deletion completeness
+    - **Property 8: Document Deletion Completeness**
+    - **Validates: Requirements 3.6**
+  - [ ]* 4.4 Write property test for document rename persistence
+    - **Property 9: Document Rename Persistence**
+    - **Validates: Requirements 3.7**
+  - [x] 4.5 Create document API routes
+    - Create app/api/documents/route.ts (GET list, POST create)
+    - Create app/api/documents/[id]/route.ts (GET, PUT, DELETE)
+    - Add request validation with zod
+    - _Requirements: 3.1, 3.3, 3.5, 3.6, 3.7_
+
+- [x] 5. Update editor to use document persistence
+  - [x] 5.1 Integrate document service with editor
+    - Update app/editor-ai/page.tsx to load/save documents
+    - Add document ID to URL params
+    - Implement auto-save with 30-second interval
+    - Add manual save button with feedback
+    - _Requirements: 3.2, 3.3, 3.5_
+  - [x] 5.2 Update dashboard with saved documents
+    - Update app/dashboard/page.tsx to fetch user documents
+    - Display document cards with title, template, last modified
+    - Add click handler to open documents in editor
+    - Add delete button with confirmation dialog
+    - _Requirements: 3.4, 3.6_
+
+- [ ] 6. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 7. Implement folder organization and search
+  - [ ] 7.1 Create folder service
+    - Create lib/services/folder-service.ts
+    - Implement create, rename, delete, getByUser, moveDocument methods
+    - Build folder tree structure
+    - _Requirements: 4.1, 4.2_
+  - [ ]* 7.2 Write property test for folder hierarchy integrity
+    - **Property 10: Folder Hierarchy Integrity**
+    - **Validates: Requirements 4.1**
+  - [ ]* 7.3 Write property test for document move correctness
+    - **Property 11: Document Move Correctness**
+    - **Validates: Requirements 4.2**
+  - [ ] 7.4 Implement search and filter functionality
+    - Add search method to document service
+    - Implement full-text search on title and content
+    - Add template type filtering
+    - Add sorting by date, name, template
+    - _Requirements: 4.3, 4.4, 4.5_
+  - [ ]* 7.5 Write property test for search result relevance
+    - **Property 12: Search Result Relevance**
+    - **Validates: Requirements 4.3**
+  - [ ]* 7.6 Write property test for template filter accuracy
+    - **Property 13: Template Filter Accuracy**
+    - **Validates: Requirements 4.4**
+  - [ ]* 7.7 Write property test for sort order correctness
+    - **Property 14: Sort Order Correctness**
+    - **Validates: Requirements 4.5**
+  - [ ] 7.8 Create folder and search UI components
+    - Create components/dashboard/folder-tree.tsx
+    - Create components/dashboard/search-bar.tsx
+    - Create components/dashboard/filter-dropdown.tsx
+    - Add drag-and-drop for moving documents to folders
+    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
+
+- [ ] 8. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 9. Implement real AI integration
+  - [ ] 9.1 Create AI service with OpenAI integration
+    - Install openai package
+    - Create lib/services/ai-service.ts
+    - Implement generate method with streaming
+    - Add template-specific prompt selection
+    - Implement usage tracking
+    - _Requirements: 1.1, 1.2, 1.3, 1.5_
+  - [ ]* 9.2 Write property test for prompt selection consistency
+    - **Property 1: Prompt Selection Consistency**
+    - **Validates: Requirements 1.2, 1.5**
+  - [ ] 9.3 Implement error handling and rate limiting
+    - Add error transformation for user-friendly messages
+    - Implement rate limiting with Upstash Redis
+    - Add retry logic for transient failures
+    - _Requirements: 1.4, 1.6_
+  - [ ]* 9.4 Write property test for error message user-friendliness
+    - **Property 2: Error Message User-Friendliness**
+    - **Validates: Requirements 1.4**
+  - [ ] 9.5 Update AI API route with real integration
+    - Update app/api/ai/generate/route.ts
+    - Replace mock responses with OpenAI calls
+    - Add streaming response handling
+    - Track usage per user
+    - _Requirements: 1.1, 1.3_
+
+- [ ] 10. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 11. Implement document sharing
+  - [ ] 11.1 Create sharing service
+    - Add share methods to document service
+    - Generate unique share tokens
+    - Implement permission levels (view/edit)
+    - Add share expiration support
+    - _Requirements: 5.1, 5.2, 5.4_
+  - [ ]* 11.2 Write property test for share token uniqueness
+    - **Property 15: Share Token Uniqueness**
+    - **Validates: Requirements 5.1**
+  - [ ]* 11.3 Write property test for share permission enforcement
+    - **Property 16: Share Permission Enforcement**
+    - **Validates: Requirements 5.2, 5.3**
+  - [ ]* 11.4 Write property test for share revocation effectiveness
+    - **Property 17: Share Revocation Effectiveness**
+    - **Validates: Requirements 5.4**
+  - [ ] 11.5 Create sharing UI and public view
+    - Create app/share/[token]/page.tsx for shared document view
+    - Create components/editor/share-dialog.tsx
+    - Add share button to editor toolbar
+    - Display share link with copy functionality
+    - _Requirements: 5.1, 5.2, 5.3, 5.4_
+
+- [ ] 12. Enhance export functionality
+  - [ ] 12.1 Improve export services with progress tracking
+    - Update lib/export/pdf-export.ts with section-by-section progress
+    - Update lib/export/pptx-export.ts with slide count progress
+    - Update lib/export/docx-export.ts with content progress
+    - Add error handling with specific messages
+    - _Requirements: 6.1, 6.2, 6.3, 6.6_
+  - [ ]* 12.2 Write property test for export content completeness
+    - **Property 18: Export Content Completeness**
+    - **Validates: Requirements 6.1, 6.2, 6.3**
+  - [ ] 12.3 Update export modal with progress UI
+    - Update components/export/export-modal.tsx
+    - Add progress bar with percentage
+    - Add cancel button during export
+    - Show success/error notifications
+    - _Requirements: 6.4, 6.5, 6.6_
+
+- [ ] 13. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 14. Implement user settings and preferences
+  - [ ] 14.1 Create settings service
+    - Create lib/services/settings-service.ts
+    - Implement get, update methods for user settings
+    - Add default template preference
+    - Add auto-save toggle
+    - _Requirements: 7.1, 7.4, 7.5_
+  - [ ]* 14.2 Write property test for profile update persistence
+    - **Property 19: Profile Update Persistence**
+    - **Validates: Requirements 7.2**
+  - [ ]* 14.3 Write property test for default template application
+    - **Property 21: Default Template Application**
+    - **Validates: Requirements 7.4**
+  - [ ] 14.4 Implement password change with verification
+    - Add password change endpoint
+    - Require current password verification
+    - Hash new password before storing
+    - _Requirements: 7.3_
+  - [ ]* 14.5 Write property test for password change security
+    - **Property 20: Password Change Security**
+    - **Validates: Requirements 7.3**
+  - [ ] 14.6 Create settings page UI
+    - Create app/settings/page.tsx
+    - Add account section with profile editing
+    - Add preferences section with default template, auto-save
+    - Add password change form
+    - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
+
+- [ ] 15. Implement usage tracking and limits
+  - [ ] 15.1 Create usage service
+    - Create lib/services/usage-service.ts
+    - Implement trackUsage, getUsage, checkLimit methods
+    - Add daily/monthly aggregation
+    - Define free tier limits
+    - _Requirements: 8.1, 8.2, 8.3, 8.4_
+  - [ ]* 15.2 Write property test for usage statistics accuracy
+    - **Property 22: Usage Statistics Accuracy**
+    - **Validates: Requirements 8.1, 8.4**
+  - [ ]* 15.3 Write property test for usage limit enforcement
+    - **Property 23: Usage Limit Enforcement**
+    - **Validates: Requirements 8.3**
+  - [ ] 15.4 Add usage display to dashboard
+    - Update app/dashboard/page.tsx with usage stats
+    - Show document count and AI generation usage
+    - Add warning when approaching limits
+    - Add upgrade prompt when limit exceeded
+    - _Requirements: 8.1, 8.2, 8.3_
+  - [ ] 15.5 Create usage history view
+    - Create app/settings/usage/page.tsx
+    - Display AI generations per day/week/month
+    - Show usage trends chart
+    - _Requirements: 8.4_
+
+- [ ] 16. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+

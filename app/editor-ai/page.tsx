@@ -1,32 +1,110 @@
-"use client";
+"use client"
 
-import { useState, useCallback } from "react";
-import { FileText, Save, Download, Eye, Settings, Palette, Layout, Lightbulb } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Navbar } from "@/components/navbar";
-import { getTemplateById, templates } from "@/lib/templates";
-import { AIToolbar } from "@/components/editor/ai-toolbar";
-import { SmartSuggestions } from "@/components/editor/smart-suggestions";
-import { ContentBlock } from "@/components/editor/content-block";
+import { useState, useCallback, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { FileText, Save, Download, Eye, Settings, Palette, Layout, Lightbulb, Loader2, Check } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Navbar } from "@/components/navbar"
+import { getTemplateById, templates } from "@/lib/templates"
+import { AIToolbar } from "@/components/editor/ai-toolbar"
+import { SmartSuggestions } from "@/components/editor/smart-suggestions"
+import { ContentBlock } from "@/components/editor/content-block"
+import { useDocument } from "@/lib/hooks/use-document"
+import { DocumentContent } from "@/lib/services/document-service"
 
 export default function EditorAI() {
-  const [templateId] = useState("strategic-consulting");
-  const selectedTemplate = getTemplateById(templateId) || templates[0];
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const documentId = searchParams.get("id")
   
-  const [activeSectionId, setActiveSectionId] = useState(selectedTemplate.sections[0].id);
-  const [sectionContents, setSectionContents] = useState<Record<string, string>>({});
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(true);
-  const [generationHistory, setGenerationHistory] = useState<Array<{ content: string; timestamp: number }>>([]);
+  const {
+    document,
+    isLoading,
+    isSaving,
+    hasUnsavedChanges,
+    saveDocument,
+    createDocument,
+    updateContent,
+    updateTitle,
+  } = useDocument(documentId || undefined)
 
-  const activeSection = selectedTemplate.sections.find(s => s.id === activeSectionId);
-  const currentContent = sectionContents[activeSectionId] || activeSection?.content || "";
+  const [templateId, setTemplateId] = useState("strategic-consulting")
+  const selectedTemplate = getTemplateById(templateId) || templates[0]
+  
+  const [activeSectionId, setActiveSectionId] = useState(selectedTemplate.sections[0].id)
+  const [sectionContents, setSectionContents] = useState<Record<string, string>>({})
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(true)
+  const [documentTitle, setDocumentTitle] = useState("Untitled Document")
+  const [showSaveSuccess, setShowSaveSuccess] = useState(false)
+
+  // Load document content when document is fetched
+  useEffect(() => {
+    if (document) {
+      setDocumentTitle(document.title)
+      setTemplateId(document.templateId)
+      const content = document.content as DocumentContent
+      if (content?.sections) {
+        const contents: Record<string, string> = {}
+        content.sections.forEach(section => {
+          contents[section.id] = section.content
+        })
+        setSectionContents(contents)
+      }
+    }
+  }, [document])
+
+  // Update template sections when template changes
+  useEffect(() => {
+    if (!document) {
+      setActiveSectionId(selectedTemplate.sections[0].id)
+    }
+  }, [selectedTemplate, document])
+
+
+  const activeSection = selectedTemplate.sections.find(s => s.id === activeSectionId)
+  const currentContent = sectionContents[activeSectionId] || activeSection?.content || ""
+
+  // Build document content for saving
+  const buildDocumentContent = useCallback((): DocumentContent => {
+    return {
+      sections: selectedTemplate.sections.map((section, index) => ({
+        id: section.id,
+        title: section.title,
+        content: sectionContents[section.id] || section.content || "",
+        type: "text" as const,
+        order: index,
+      })),
+      metadata: {
+        version: 1,
+      },
+    }
+  }, [selectedTemplate.sections, sectionContents])
+
+  // Save handler
+  const handleSave = useCallback(async () => {
+    const content = buildDocumentContent()
+    
+    if (document) {
+      updateContent(content)
+      updateTitle(documentTitle)
+      await saveDocument()
+    } else {
+      const newDoc = await createDocument(documentTitle, templateId, content)
+      if (newDoc) {
+        router.replace(`/editor-ai?id=${newDoc.id}`)
+      }
+    }
+    
+    setShowSaveSuccess(true)
+    setTimeout(() => setShowSaveSuccess(false), 2000)
+  }, [document, documentTitle, templateId, buildDocumentContent, updateContent, updateTitle, saveDocument, createDocument, router])
 
   const handleGenerateAI = useCallback(async (mode: string) => {
-    if (!activeSection) return;
+    if (!activeSection) return
 
-    setIsGenerating(true);
+    setIsGenerating(true)
     
     try {
       const response = await fetch("/api/ai/generate", {
@@ -38,44 +116,37 @@ export default function EditorAI() {
           templateId: selectedTemplate.id,
           sectionTitle: activeSection.title,
         }),
-      });
+      })
 
-      if (!response.ok) throw new Error("Failed to generate content");
+      if (!response.ok) throw new Error("Failed to generate content")
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let generatedContent = "";
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      let generatedContent = ""
 
       if (reader) {
         while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+          const { done, value } = await reader.read()
+          if (done) break
 
-          const chunk = decoder.decode(value);
-          const lines = chunk.split("\n");
+          const chunk = decoder.decode(value)
+          const lines = chunk.split("\n")
 
           for (const line of lines) {
             if (line.startsWith("data: ")) {
-              const data = line.slice(6);
-              if (data === "[DONE]") {
-                // Save to history
-                setGenerationHistory(prev => [...prev, { 
-                  content: generatedContent, 
-                  timestamp: Date.now() 
-                }]);
-                break;
-              }
+              const data = line.slice(6)
+              if (data === "[DONE]") break
               
               try {
-                const parsed = JSON.parse(data);
+                const parsed = JSON.parse(data)
                 if (parsed.content) {
-                  generatedContent += parsed.content;
+                  generatedContent += parsed.content
                   setSectionContents(prev => ({
                     ...prev,
                     [activeSectionId]: generatedContent
-                  }));
+                  }))
                 }
-              } catch (e) {
+              } catch {
                 // Ignore parse errors
               }
             }
@@ -83,27 +154,36 @@ export default function EditorAI() {
         }
       }
     } catch (error) {
-      console.error("AI generation error:", error);
+      console.error("AI generation error:", error)
     } finally {
-      setIsGenerating(false);
+      setIsGenerating(false)
     }
-  }, [activeSection, activeSectionId, currentContent, selectedTemplate.id]);
+  }, [activeSection, activeSectionId, currentContent, selectedTemplate.id])
 
   const handleStopGeneration = useCallback(() => {
-    setIsGenerating(false);
-  }, []);
+    setIsGenerating(false)
+  }, [])
 
   const handleContentChange = useCallback((content: string) => {
     setSectionContents(prev => ({
       ...prev,
       [activeSectionId]: content
-    }));
-  }, [activeSectionId]);
+    }))
+  }, [activeSectionId])
 
-  const handleApplySuggestion = useCallback((suggestion: any) => {
-    // Apply suggestion logic here
-    console.log("Applying suggestion:", suggestion);
-  }, []);
+  const handleApplySuggestion = useCallback((suggestion: { id: string; title: string; description: string; type: string }) => {
+    // Apply suggestion - could generate content based on suggestion type
+    console.log("Applying suggestion:", suggestion)
+  }, [])
+
+  if (isLoading && documentId) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    )
+  }
+
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -113,16 +193,17 @@ export default function EditorAI() {
         {/* Sidebar */}
         <div className="w-80 bg-white border-r border-slate-200 flex flex-col">
           <div className="p-6 border-b border-slate-200">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-xl font-bold text-primary">Document Sections</h2>
-              <div 
-                className="w-4 h-4 rounded-full border-2"
-                style={{ backgroundColor: selectedTemplate.colorScheme.primary }}
-                title={selectedTemplate.name}
-              />
-            </div>
+            <input
+              type="text"
+              value={documentTitle}
+              onChange={(e) => setDocumentTitle(e.target.value)}
+              className="text-xl font-bold text-primary bg-transparent border-none outline-none w-full focus:ring-0"
+              placeholder="Document Title"
+            />
             <p className="text-sm text-muted-foreground">{selectedTemplate.name} Template</p>
-            <p className="text-xs text-muted-foreground mt-1">{selectedTemplate.layout} layout</p>
+            {hasUnsavedChanges && (
+              <p className="text-xs text-amber-600 mt-1">Unsaved changes</p>
+            )}
           </div>
           
           <div className="flex-1 p-4 space-y-2 overflow-auto">
@@ -146,10 +227,6 @@ export default function EditorAI() {
                 </div>
               </div>
             ))}
-            
-            <Button variant="outline" className="w-full mt-4">
-              + Add Section
-            </Button>
           </div>
           
           <div className="p-4 border-t border-slate-200 space-y-2">
@@ -170,12 +247,22 @@ export default function EditorAI() {
 
         {/* Main Editor Area */}
         <div className="flex-1 flex flex-col">
-          {/* Editor Toolbar */}
           <div className="bg-white border-b border-slate-200 p-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-4">
-                <h1 className="text-lg font-semibold text-primary">{selectedTemplate.name} Draft</h1>
-                <span className="text-sm text-muted-foreground">Last saved 2 minutes ago</span>
+                <h1 className="text-lg font-semibold text-primary">{documentTitle}</h1>
+                {isSaving && (
+                  <span className="text-sm text-slate-500 flex items-center">
+                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    Saving...
+                  </span>
+                )}
+                {showSaveSuccess && (
+                  <span className="text-sm text-green-600 flex items-center">
+                    <Check className="h-3 w-3 mr-1" />
+                    Saved
+                  </span>
+                )}
               </div>
               
               <div className="flex items-center space-x-2">
@@ -191,8 +278,17 @@ export default function EditorAI() {
                   <Eye className="h-4 w-4 mr-2" />
                   Preview
                 </Button>
-                <Button variant="outline" size="sm">
-                  <Save className="h-4 w-4 mr-2" />
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleSave}
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
                   Save
                 </Button>
                 <Button variant="accent" size="sm">
@@ -202,7 +298,6 @@ export default function EditorAI() {
               </div>
             </div>
 
-            {/* AI Toolbar */}
             <AIToolbar 
               onGenerate={handleGenerateAI}
               isGenerating={isGenerating}
@@ -210,8 +305,8 @@ export default function EditorAI() {
             />
           </div>
 
+
           <div className="flex flex-1 overflow-hidden">
-            {/* Editor Canvas */}
             <div 
               className="flex-1 p-8 overflow-auto"
               style={{ backgroundColor: selectedTemplate.colorScheme.background }}
@@ -243,7 +338,6 @@ export default function EditorAI() {
                     placeholder={`Start writing your ${activeSection?.title.toLowerCase()} or use AI to generate content...`}
                   />
 
-                  {/* Template hints */}
                   <div className="mt-8 p-4 rounded-lg border-2 border-dashed bg-slate-50">
                     <p className="text-sm font-medium text-primary mb-2">
                       💡 {selectedTemplate.name} Template Tips
@@ -258,7 +352,6 @@ export default function EditorAI() {
               </Card>
             </div>
 
-            {/* Smart Suggestions Panel */}
             <SmartSuggestions
               templateId={selectedTemplate.id}
               sectionType={activeSection?.type || ""}
@@ -270,5 +363,5 @@ export default function EditorAI() {
         </div>
       </div>
     </div>
-  );
+  )
 }

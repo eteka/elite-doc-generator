@@ -60,3 +60,5 @@ pids
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+/lib/generated/prisma
